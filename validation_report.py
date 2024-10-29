@@ -2,6 +2,12 @@ import streamlit as st
 import pandas as pd
 import io
 import numpy as np
+import hashlib
+
+def generate_hash_key(row):
+    # Convert all values to strings, including dates
+    combined_values = ''.join(row.astype(str))
+    return hashlib.md5(combined_values.encode()).hexdigest().upper()
 
 def generate_validation_report(cognos_df, pbi_df):
     # Identify dimensions and measures
@@ -12,9 +18,13 @@ def generate_validation_report(cognos_df, pbi_df):
     pbi_measures = [col for col in pbi_df.columns if col not in dims]
     all_measures = list(set(cognos_measures) & set(pbi_measures))  # Only measures present in both
 
-    # Create a unique key by concatenating all dimensions
-    cognos_df['unique_key'] = cognos_df[dims].astype(str).agg('-'.join, axis=1).str.upper()  # Capitalize for case-insensitive comparison
-    pbi_df['unique_key'] = pbi_df[dims].astype(str).agg('-'.join, axis=1).str.upper()  # Capitalize for case-insensitive comparison
+    # Ensure date columns are treated as strings for unique key creation
+    cognos_df = cognos_df.applymap(lambda x: x.strftime('%Y-%m-%d') if isinstance(x, pd.Timestamp) else x)
+    pbi_df = pbi_df.applymap(lambda x: x.strftime('%Y-%m-%d') if isinstance(x, pd.Timestamp) else x)
+
+    # Create a unique key by hashing all dimension and measure values
+    cognos_df['unique_key'] = cognos_df.apply(generate_hash_key, axis=1)
+    pbi_df['unique_key'] = pbi_df.apply(generate_hash_key, axis=1)
 
     # Move 'unique_key' to the first column
     cognos_df = cognos_df[['unique_key'] + [col for col in cognos_df.columns if col != 'unique_key']]
@@ -40,9 +50,11 @@ def generate_validation_report(cognos_df, pbi_df):
         validation_report[f'{measure}_Cognos'] = validation_report['unique_key'].map(dict(zip(cognos_df['unique_key'], cognos_df[measure])))
         validation_report[f'{measure}_PBI'] = validation_report['unique_key'].map(dict(zip(pbi_df['unique_key'], pbi_df[measure])))
         
-        # Calculate difference (PBI - Cognos)
-        #validation_report[f'{measure}_Diff'] = validation_report[f'{measure}_PBI'] - validation_report[f'{measure}_Cognos']
-        validation_report[f'{measure}_Diff'] = validation_report[f'{measure}_PBI'].fillna(0) - validation_report[f'{measure}_Cognos'].fillna(0)
+        # Calculate difference (PBI - Cognos), handling nulls as 0
+        if pd.api.types.is_numeric_dtype(cognos_df[measure]) and pd.api.types.is_numeric_dtype(pbi_df[measure]):
+            validation_report[f'{measure}_Diff'] = validation_report[f'{measure}_PBI'].fillna(0) - validation_report[f'{measure}_Cognos'].fillna(0)
+        else:
+            validation_report[f'{measure}_Diff'] = validation_report[f'{measure}_PBI'].astype(str) + " vs " + validation_report[f'{measure}_Cognos'].astype(str)
 
     # Reorder columns
     column_order = ['unique_key'] + dims + ['presence'] + \
@@ -51,7 +63,6 @@ def generate_validation_report(cognos_df, pbi_df):
     validation_report = validation_report[column_order]
 
     return validation_report, cognos_df, pbi_df
-
 
 def main():
     st.title("Validation Report Generator")
@@ -64,9 +75,6 @@ def main():
     3. If there are ID/Key/Code columns, make sure the ID or Key columns contains "_ID" or "_KEY" (case insensitive)
     4. Working with merged reports? unmerge them like this [link](https://www.loom.com/share/c876bb4cf67e45e7b01cd64facb6f7d8?sid=fdd1bb3e-96cf-4eaa-af3e-2a951861a8cc)
    """)
-
-    #st.markdown("Working with merged reports? unmerge them like this [link](https://www.loom.com/share/c876bb4cf67e45e7b01cd64facb6f7d8?sid=fdd1bb3e-96cf-4eaa-af3e-2a951861a8cc)")
-
 
     st.markdown("---")  # Add a horizontal line for visual separation
 
