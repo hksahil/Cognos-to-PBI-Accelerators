@@ -5,58 +5,47 @@ import numpy as np
 import hashlib
 
 def generate_hash_key(row):
-    # Convert all values to strings, including dates
     combined_values = ''.join(row.astype(str))
     return hashlib.md5(combined_values.encode()).hexdigest().upper()
 
 def generate_validation_report(cognos_df, pbi_df):
-    # Identify dimensions and measures
     dims = [col for col in cognos_df.columns if col in pbi_df.columns and 
             (cognos_df[col].dtype == 'object' or '_id' in col.lower() or '_key' in col.lower() or
              '_ID' in col or '_KEY' in col)]
     cognos_measures = [col for col in cognos_df.columns if col not in dims]
     pbi_measures = [col for col in pbi_df.columns if col not in dims]
-    all_measures = list(set(cognos_measures) & set(pbi_measures))  # Only measures present in both
+    all_measures = list(set(cognos_measures) & set(pbi_measures)) 
 
-    # Ensure date columns are treated as strings for unique key creation
     cognos_df = cognos_df.applymap(lambda x: x.strftime('%Y-%m-%d') if isinstance(x, pd.Timestamp) else x)
     pbi_df = pbi_df.applymap(lambda x: x.strftime('%Y-%m-%d') if isinstance(x, pd.Timestamp) else x)
 
-    # Create a unique key by hashing all dimension and measure values
     cognos_df['unique_key'] = cognos_df.apply(generate_hash_key, axis=1)
     pbi_df['unique_key'] = pbi_df.apply(generate_hash_key, axis=1)
 
-    # Move 'unique_key' to the first column
     cognos_df = cognos_df[['unique_key'] + [col for col in cognos_df.columns if col != 'unique_key']]
     pbi_df = pbi_df[['unique_key'] + [col for col in pbi_df.columns if col != 'unique_key']]
 
-    # Create the validation report dataframe
     validation_report = pd.DataFrame({'unique_key': list(set(cognos_df['unique_key']) | set(pbi_df['unique_key']))})
 
-    # Add dimensions
     for dim in dims:
         validation_report[dim] = validation_report['unique_key'].map(dict(zip(cognos_df['unique_key'], cognos_df[dim])))
         validation_report[dim].fillna(validation_report['unique_key'].map(dict(zip(pbi_df['unique_key'], pbi_df[dim]))), inplace=True)
 
-    # Determine presence in sheets
     validation_report['presence'] = validation_report['unique_key'].apply(
         lambda key: 'Present in Both' if key in cognos_df['unique_key'].values and key in pbi_df['unique_key'].values
         else ('Present in Cognos' if key in cognos_df['unique_key'].values
               else 'Present in PBI')
     )
 
-    # Add measures and calculate differences
     for measure in all_measures:
         validation_report[f'{measure}_Cognos'] = validation_report['unique_key'].map(dict(zip(cognos_df['unique_key'], cognos_df[measure])))
         validation_report[f'{measure}_PBI'] = validation_report['unique_key'].map(dict(zip(pbi_df['unique_key'], pbi_df[measure])))
         
-        # Calculate difference (PBI - Cognos), handling nulls as 0
         if pd.api.types.is_numeric_dtype(cognos_df[measure]) and pd.api.types.is_numeric_dtype(pbi_df[measure]):
             validation_report[f'{measure}_Diff'] = validation_report[f'{measure}_PBI'].fillna(0) - validation_report[f'{measure}_Cognos'].fillna(0)
         else:
             validation_report[f'{measure}_Diff'] = validation_report[f'{measure}_PBI'].astype(str) + " vs " + validation_report[f'{measure}_Cognos'].astype(str)
 
-    # Reorder columns
     column_order = ['unique_key'] + dims + ['presence'] + \
                    [col for measure in all_measures for col in 
                     [f'{measure}_Cognos', f'{measure}_PBI', f'{measure}_Diff']]
@@ -64,10 +53,17 @@ def generate_validation_report(cognos_df, pbi_df):
 
     return validation_report, cognos_df, pbi_df
 
+def generate_column_check(cognos_df, pbi_df):
+    column_check = pd.DataFrame({
+        'Cognos columns': cognos_df.columns,
+        'PBI columns': pbi_df.columns,
+        'match': ['Yes' if c == p else 'No' for c, p in zip(cognos_df.columns, pbi_df.columns)]
+    })
+    return column_check
+
 def main():
     st.title("Validation Report Generator")
 
-    # Add helper text
     st.markdown("""
     **Important Assumptions:**
     1. Upload the Excel file with two sheets: "Cognos" and "PBI".
@@ -76,7 +72,7 @@ def main():
     4. Working with merged reports? unmerge them like this [link](https://www.loom.com/share/c876bb4cf67e45e7b01cd64facb6f7d8?sid=fdd1bb3e-96cf-4eaa-af3e-2a951861a8cc)
    """)
 
-    st.markdown("---")  # Add a horizontal line for visual separation
+    st.markdown("---")
 
     uploaded_file = st.file_uploader("Upload Excel file", type="xlsx")
 
@@ -87,16 +83,17 @@ def main():
             pbi_df = pd.read_excel(xls, 'PBI')
 
             validation_report, cognos_df, pbi_df = generate_validation_report(cognos_df, pbi_df)
+            column_check = generate_column_check(cognos_df, pbi_df)
 
             st.subheader("Validation Report Preview")
             st.dataframe(validation_report)
 
-            # Generate Excel file for download
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 cognos_df.to_excel(writer, sheet_name='Cognos', index=False)
                 pbi_df.to_excel(writer, sheet_name='PBI', index=False)
                 validation_report.to_excel(writer, sheet_name='Validation_Report', index=False)
+                column_check.to_excel(writer, sheet_name='ColumnCheck', index=False)
 
             output.seek(0)
             
