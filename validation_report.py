@@ -3,6 +3,30 @@ import pandas as pd
 import io
 import numpy as np
 
+
+# Define the checklist data as a DataFrame
+checklist_data = {
+    "S.No": range(1, 14),
+    "Checklist": [
+        "All the columns of Cognos replicated in PBI (No extra columns)",
+        "All the filters of Cognos replicated in PBI",
+        "Filters working as expected (single/multi select as usual)",
+        "Column names matching with Cognos",
+        "Currency symbols to be replicated",
+        "Filters need to be aligned vertically/horizontally",
+        "Report Name & Package name to be written",
+        "Entire model to be refreshed before publishing to PBI service",
+        "Date Last refreshed to be removed from filter/table",
+        "Table's column header to be bold",
+        "Table style to not have grey bars",
+        "Pre-applied filters while generating validation report?",
+        "Dateformat to be YYYY-MM-DD [hh:mm:ss]"
+    ],
+    "Status - Level1": ["" for _ in range(13)],
+    "Status - Level2": ["" for _ in range(13)]
+}
+checklist_df = pd.DataFrame(checklist_data)
+
 def generate_validation_report(cognos_df, pbi_df):
     # Identify dimensions and measures
     dims = [col for col in cognos_df.columns if col in pbi_df.columns and 
@@ -146,6 +170,7 @@ def main():
             # Generate Excel file for download
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                checklist_df.to_excel(writer, sheet_name='Checklist', index=False)
                 cognos_agg.to_excel(writer, sheet_name='Cognos', index=False)
                 pbi_agg.to_excel(writer, sheet_name='PBI', index=False)
                 validation_report.to_excel(writer, sheet_name='Validation_Report', index=False)
