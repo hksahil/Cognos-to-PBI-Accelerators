@@ -20,7 +20,8 @@ checklist_data = {
         "Table's column header to be bold",
         "Table style to not have grey bars",
         "Pre-applied filters while generating validation report?",
-        "Dateformat to be YYYY-MM-DD [hh:mm:ss]"
+        "Dateformat to be YYYY-MM-DD [hh:mm:ss]",
+        "Sorting is replicated"
     ],
     "Status - Level1": ["" for _ in range(13)],
     "Status - Level2": ["" for _ in range(13)]
