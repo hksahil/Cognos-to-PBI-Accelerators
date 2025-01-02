@@ -161,6 +161,10 @@ def main():
             cognos_df = pd.read_excel(xls, 'Cognos')
             pbi_df = pd.read_excel(xls, 'PBI')
 
+            # Convert all string columns to uppercase and trim whitespace
+            cognos_df = cognos_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
+            pbi_df = pbi_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
+
             validation_report, cognos_agg, pbi_agg = generate_validation_report(cognos_df, pbi_df)
             column_checklist_df = column_checklist(cognos_df, pbi_df)
             diff_checker_df = generate_diff_checker(validation_report)
