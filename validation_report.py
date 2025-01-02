@@ -191,6 +191,8 @@ def main():
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
+            st.markdown('---')
+            st.markdown('Made with :heart: by [Sahil Choudhary](contact-sahil.netlify.app)')
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
