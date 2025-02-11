@@ -1,4 +1,5 @@
 // Keep changing Table name to create same formulas in all tables
+// How to use? Press run button then do CTRL+S
 
 var table = Model.Tables["BrandSummary"];
 
