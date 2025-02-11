@@ -1,5 +1,5 @@
 // Keep changing Table name to create same formulas in all tables
-// How to use? Press run button then do CTRL+S
+// How to use? Press run button (it will create measures in Tabular editor with blue icon) then do CTRL+S (it will move measures to Powerbi)
 
 var table = Model.Tables["BrandSummary"];
 
