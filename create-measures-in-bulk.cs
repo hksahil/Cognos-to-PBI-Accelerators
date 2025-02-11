@@ -1,3 +1,5 @@
+// Keep changing Table name to create same formulas in all tables
+
 var table = Model.Tables["BrandSummary"];
 
 string Variable = "TS";  
