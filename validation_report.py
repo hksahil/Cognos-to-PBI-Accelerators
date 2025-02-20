@@ -65,10 +65,6 @@ def generate_validation_report(cognos_df, pbi_df):
     #st.write('pbi_agg',pbi_agg)
 
     # Create a unique key by concatenating all dimensions
-    #st.write('before')
-    #st.write('1',cognos_agg[dims])
-    #st.write('2',cognos_agg[dims].astype(str))
-    #st.write('3',cognos_agg[dims].astype(str).agg('-'.join, axis=1))
     cognos_agg['unique_key'] = cognos_agg[dims].astype(str).agg('-'.join, axis=1).str.upper()
     pbi_agg['unique_key'] = pbi_agg[dims].astype(str).agg('-'.join, axis=1).str.upper()
     #st.write('afterkeys')
