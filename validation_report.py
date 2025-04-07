@@ -8,7 +8,7 @@ from datetime import datetime
 checklist_data = {
     "S.No": range(1, 16),
     "Checklist": [
-        "Database & Warehouse is parameterized (In case of DESQL Reports)"
+        "Database & Warehouse is parameterized (In case of DESQL Reports)",
         "All the columns of Cognos replicated in PBI (No extra columns)",
         "All the filters of Cognos replicated in PBI",
         "Filters working as expected (single/multi select as usual)",
