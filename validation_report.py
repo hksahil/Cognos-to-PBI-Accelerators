@@ -6,8 +6,9 @@ from datetime import datetime
 
 # Define the checklist data as a DataFrame
 checklist_data = {
-    "S.No": range(1, 15),
+    "S.No": range(1, 16),
     "Checklist": [
+        "Database & Warehouse is parameterized (In case of DESQL Reports)"
         "All the columns of Cognos replicated in PBI (No extra columns)",
         "All the filters of Cognos replicated in PBI",
         "Filters working as expected (single/multi select as usual)",
@@ -23,8 +24,8 @@ checklist_data = {
         "Dateformat to be YYYY-MM-DD [hh:mm:ss] in refresh date as well",
         "Sorting is replicated"
     ],
-    "Status - Level1": ["" for _ in range(14)],
-    "Status - Level2": ["" for _ in range(14)]
+    "Status - Level1": ["" for _ in range(15)],
+    "Status - Level2": ["" for _ in range(15)]
 }
 checklist_df = pd.DataFrame(checklist_data)
 
