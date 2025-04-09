@@ -23,7 +23,7 @@ checklist_data = {
         "Pre-applied filters while generating validation report?",
         "Dateformat to be YYYY-MM-DD [hh:mm:ss] in refresh date as well",
         "Sorting is replicated",
-        "Filter pane to be hide before publishing to PBI service",
+        "Filter pane to be hidden before publishing to PBI service",
         "Mentioned the exception in our validation document like numbers/columns/values mismatch (if any)"
     ],
     "Status - Level1": ["" for _ in range(17)],
