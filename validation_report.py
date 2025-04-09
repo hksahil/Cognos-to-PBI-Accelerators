@@ -6,7 +6,7 @@ from datetime import datetime
 
 # Define the checklist data as a DataFrame
 checklist_data = {
-    "S.No": range(1, 16),
+    "S.No": range(1, 18),
     "Checklist": [
         "Database & Warehouse is parameterized (In case of DESQL Reports)",
         "All the columns of Cognos replicated in PBI (No extra columns)",
@@ -22,10 +22,12 @@ checklist_data = {
         "Table style to not have grey bars",
         "Pre-applied filters while generating validation report?",
         "Dateformat to be YYYY-MM-DD [hh:mm:ss] in refresh date as well",
-        "Sorting is replicated"
+        "Sorting is replicated",
+        "Filter pane to be hide before publishing to PBI service",
+        "Mentioned the exception in our validation document like numbers/columns/values mismatch (if any)"
     ],
-    "Status - Level1": ["" for _ in range(15)],
-    "Status - Level2": ["" for _ in range(15)]
+    "Status - Level1": ["" for _ in range(17)],
+    "Status - Level2": ["" for _ in range(17)]
 }
 checklist_df = pd.DataFrame(checklist_data)
 
