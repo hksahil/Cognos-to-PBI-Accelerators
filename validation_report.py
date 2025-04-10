@@ -4,6 +4,28 @@ import io
 import numpy as np
 from datetime import datetime
 
+# Helper function to clean numeric values stored as strings
+def strip_leading_zeros(val):
+    try:
+        if isinstance(val, str):
+            val = val.strip().replace(',', '')
+            if val.replace('.', '', 1).isdigit() or \
+               (val.startswith('-') and val[1:].replace('.', '', 1).isdigit()):
+                return float(val)
+        return val
+    except:
+        return val
+
+# Apply numeric cleaning only on likely numeric columns
+def convert_possible_numeric(df):
+    for col in df.columns:
+        df[col] = df[col].apply(strip_leading_zeros)
+        try:
+            df[col] = pd.to_numeric(df[col], errors='ignore')
+        except:
+            pass
+    return df
+
 # Define the checklist data as a DataFrame
 checklist_data = {
     "S.No": range(1, 18),
@@ -68,7 +90,6 @@ def generate_validation_report(cognos_df, pbi_df):
     for measure in all_measures:
         validation_report[f'{measure}_Cognos'] = validation_report['unique_key'].map(dict(zip(cognos_agg['unique_key'], cognos_agg[measure])))
         validation_report[f'{measure}_PBI'] = validation_report['unique_key'].map(dict(zip(pbi_agg['unique_key'], pbi_agg[measure])))
-
         validation_report[f'{measure}_Diff'] = validation_report[f'{measure}_PBI'].fillna(0) - validation_report[f'{measure}_Cognos'].fillna(0)
 
     column_order = ['unique_key'] + dims + ['presence'] + \
@@ -109,11 +130,6 @@ def generate_diff_checker(validation_report):
 
     return diff_checker
 
-# Function to check if the file contains data or only column names
-def check_columns_only(cognos_df, pbi_df):
-    # Check if the DataFrame has any data or only columns
-    return cognos_df.empty or pbi_df.empty
-
 # Main function
 def main():
     st.title("Validation Report Generator")
@@ -136,14 +152,17 @@ def main():
             cognos_df = pd.read_excel(xls, 'Cognos')
             pbi_df = pd.read_excel(xls, 'PBI')
 
+            # Clean string fields: uppercase and strip
             cognos_df = cognos_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
             pbi_df = pbi_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
 
-            # Buttons to choose between data and column-only
+            # Clean and convert possible numeric fields
+            cognos_df = convert_possible_numeric(cognos_df)
+            pbi_df = convert_possible_numeric(pbi_df)
+
             option = st.radio("Select Option", ["Data Present", "Only Column Names Present"])
 
             if option == "Only Column Names Present":
-                # If only columns, generate Column Checklist and Cognos, PBI sheets only
                 column_checklist_df = column_checklist(cognos_df, pbi_df)
 
                 st.subheader("Column Checklist Preview")
@@ -158,11 +177,9 @@ def main():
 
                 output.seek(0)
 
-                if model_name and report_name:
-                    today_date = datetime.today().strftime('%Y-%m-%d')
-                    dynamic_filename = f"{model_name}_{report_name}_ColumnCheck_Report_{today_date}.xlsx"
-                else:
-                    dynamic_filename = f"ColumnCheck_Report_{today_date}.xlsx"
+                today_date = datetime.today().strftime('%Y-%m-%d')
+                dynamic_filename = f"{model_name}_{report_name}_ColumnCheck_Report_{today_date}.xlsx" \
+                    if model_name and report_name else f"ColumnCheck_Report_{today_date}.xlsx"
 
                 st.download_button(
                     label="Download Column Check Excel Report",
@@ -172,7 +189,6 @@ def main():
                 )
 
             elif option == "Data Present":
-                # Generate the full validation report as usual
                 validation_report, cognos_agg, pbi_agg = generate_validation_report(cognos_df, pbi_df)
                 column_checklist_df = column_checklist(cognos_df, pbi_df)
                 diff_checker_df = generate_diff_checker(validation_report)
@@ -191,11 +207,9 @@ def main():
 
                 output.seek(0)
 
-                if model_name and report_name:
-                    today_date = datetime.today().strftime('%Y-%m-%d')
-                    dynamic_filename = f"{model_name}_{report_name}_ValidationReport_{today_date}.xlsx"
-                else:
-                    dynamic_filename = f"ValidationReport_{today_date}.xlsx"
+                today_date = datetime.today().strftime('%Y-%m-%d')
+                dynamic_filename = f"{model_name}_{report_name}_ValidationReport_{today_date}.xlsx" \
+                    if model_name and report_name else f"ValidationReport_{today_date}.xlsx"
 
                 st.download_button(
                     label="Download Excel Report",
