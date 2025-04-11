@@ -1,10 +1,11 @@
+
 import streamlit as st
 import pandas as pd
 import io
 import numpy as np
 from datetime import datetime
 
-# Helper function to clean numeric values stored as strings
+# Function to strip leading zeros and convert to numeric if applicable
 def strip_leading_zeros(val):
     try:
         if isinstance(val, str):
@@ -53,7 +54,6 @@ checklist_data = {
 }
 checklist_df = pd.DataFrame(checklist_data)
 
-# Function to generate validation report
 def generate_validation_report(cognos_df, pbi_df):
     dims = [col for col in cognos_df.columns if col in pbi_df.columns and 
             (cognos_df[col].dtype == 'object' or '_id' in col.lower() or '_key' in col.lower() or
@@ -90,16 +90,15 @@ def generate_validation_report(cognos_df, pbi_df):
     for measure in all_measures:
         validation_report[f'{measure}_Cognos'] = validation_report['unique_key'].map(dict(zip(cognos_agg['unique_key'], cognos_agg[measure])))
         validation_report[f'{measure}_PBI'] = validation_report['unique_key'].map(dict(zip(pbi_agg['unique_key'], pbi_agg[measure])))
+
         validation_report[f'{measure}_Diff'] = validation_report[f'{measure}_PBI'].fillna(0) - validation_report[f'{measure}_Cognos'].fillna(0)
 
-    column_order = ['unique_key'] + dims + ['presence'] + \
-                   [col for measure in all_measures for col in 
+    column_order = ['unique_key'] + dims + ['presence'] +                    [col for measure in all_measures for col in 
                     [f'{measure}_Cognos', f'{measure}_PBI', f'{measure}_Diff']]
     validation_report = validation_report[column_order]
 
     return validation_report, cognos_agg, pbi_agg
 
-# Function to create column checklist
 def column_checklist(cognos_df, pbi_df):
     cognos_columns = cognos_df.columns.tolist()
     pbi_columns = pbi_df.columns.tolist()
@@ -113,7 +112,6 @@ def column_checklist(cognos_df, pbi_df):
     
     return checklist_df
 
-# Function to create diff checker
 def generate_diff_checker(validation_report):
     diff_columns = [col for col in validation_report.columns if col.endswith('_Diff')]
 
@@ -130,7 +128,6 @@ def generate_diff_checker(validation_report):
 
     return diff_checker
 
-# Main function
 def main():
     st.title("Validation Report Generator")
 
@@ -152,13 +149,13 @@ def main():
             cognos_df = pd.read_excel(xls, 'Cognos')
             pbi_df = pd.read_excel(xls, 'PBI')
 
-            # Clean string fields: uppercase and strip
-            cognos_df = cognos_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
-            pbi_df = pbi_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
-
-            # Clean and convert possible numeric fields
+            # Convert numeric-like strings
             cognos_df = convert_possible_numeric(cognos_df)
             pbi_df = convert_possible_numeric(pbi_df)
+
+            # Standardize text columns
+            cognos_df = cognos_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
+            pbi_df = pbi_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
 
             option = st.radio("Select Option", ["Data Present", "Only Column Names Present"])
 
@@ -176,10 +173,8 @@ def main():
                     column_checklist_df.to_excel(writer, sheet_name='Column Checklist', index=False)
 
                 output.seek(0)
-
                 today_date = datetime.today().strftime('%Y-%m-%d')
-                dynamic_filename = f"{model_name}_{report_name}_ColumnCheck_Report_{today_date}.xlsx" \
-                    if model_name and report_name else f"ColumnCheck_Report_{today_date}.xlsx"
+                dynamic_filename = f"{model_name}_{report_name}_ColumnCheck_Report_{today_date}.xlsx" if model_name and report_name else f"ColumnCheck_Report_{today_date}.xlsx"
 
                 st.download_button(
                     label="Download Column Check Excel Report",
@@ -206,10 +201,8 @@ def main():
                     diff_checker_df.to_excel(writer, sheet_name='Diff Checker', index=False)
 
                 output.seek(0)
-
                 today_date = datetime.today().strftime('%Y-%m-%d')
-                dynamic_filename = f"{model_name}_{report_name}_ValidationReport_{today_date}.xlsx" \
-                    if model_name and report_name else f"ValidationReport_{today_date}.xlsx"
+                dynamic_filename = f"{model_name}_{report_name}_ValidationReport_{today_date}.xlsx" if model_name and report_name else f"ValidationReport_{today_date}.xlsx"
 
                 st.download_button(
                     label="Download Excel Report",
