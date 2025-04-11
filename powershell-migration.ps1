@@ -1,52 +1,58 @@
-# Install Power BI Module (if not installed)
-Install-Module -Name MicrosoftPowerBIMgmt -Scope CurrentUser -Force -AllowClobber
-
-# Connect to Power BI Service (Prompts for Login)
+# Connect to Power BI Service
 Connect-PowerBIServiceAccount
 
-# Define Source & Target Workspaces
-$sourceWorkspaceName = "prod"
-$targetWorkspaceName = "Test"
+# Define output CSV file
+$outputFile = "$env:TEMP\PBI_Metadata.csv"
 
-# Get Workspace IDs
-$sourceWorkspace = Get-PowerBIWorkspace -Name $sourceWorkspaceName
-$targetWorkspace = Get-PowerBIWorkspace -Name $targetWorkspaceName
+# Initialize an array to store metadata
+$metadata = @()
 
-if (!$sourceWorkspace -or !$targetWorkspace) {
-    Write-Host "Error: One or both workspaces not found. Check workspace names."
-    exit
-}
+# Get all Workspaces
+$workspaces = Get-PowerBIWorkspace 
 
-# Get Reports & Datasets from Source Workspace
-$sourceReports = Get-PowerBIReport -WorkspaceId $sourceWorkspace.Id
-$sourceDatasets = Get-PowerBIDataset -WorkspaceId $sourceWorkspace.Id
-
-Write-Host "Found $($sourceReports.Count) reports and $($sourceDatasets.Count) datasets in the source workspace."
-
-# Migrate Reports
-foreach ($report in $sourceReports) {
-    Write-Host "Exporting report: $($report.Name)"
+foreach ($workspace in $workspaces) {
+    Write-Host "Processing workspace: $($workspace.Name)"
     
-    # Export Report from Source
-    $exportPath = "$env:TEMP\$($report.Name).pbix"
-    Export-PowerBIReport -WorkspaceId $sourceWorkspace.Id -Id $report.Id -OutFile $exportPath
+    # Get all Datasets in the Workspace
+    $datasets = Get-PowerBIDataset -WorkspaceId $workspace.Id
 
-    # Import Report into Target
-    New-PowerBIReport -WorkspaceId $targetWorkspace.Id -Path $exportPath -Name $report.Name
+    # Get all Reports in the Workspace
+    $reports = Get-PowerBIReport -WorkspaceId $workspace.Id
 
-    Write-Host "Successfully migrated report: $($report.Name)"
-}
+    foreach ($dataset in $datasets) {
+        # Get Dataset Credentials (Only if you have permissions)
+        $datasetCreds = Get-PowerBIDataset -Id $dataset.Id -WorkspaceId $workspace.Id | Select-Object -ExpandProperty GatewayId -ErrorAction SilentlyContinue
+        
+        # Get Storage Mode (DirectQuery or Import)
+        $storageMode = (Get-PowerBIDataset -WorkspaceId $workspace.Id -Id $dataset.Id).DefaultMode
+        
+        # Store Metadata
+        $metadata += [PSCustomObject]@{
+            Workspace_Name  = $workspace.Name
+            Workspace_ID    = $workspace.Id
+            Dataset_ID      = $dataset.Id
+            Dataset_Creds   = if ($datasetCreds) { $datasetCreds } else { "N/A" }
+            Report_Name     = "N/A"
+            Report_ID       = "N/A"
+            Storage_Mode    = $storageMode
+        }
+    }
 
-# Migrate Datasets (Reports need to be rebound)
-$targetDatasets = Get-PowerBIDataset -WorkspaceId $targetWorkspace.Id
-
-foreach ($report in (Get-PowerBIReport -WorkspaceId $targetWorkspace.Id)) {
-    $matchingDataset = $targetDatasets | Where-Object { $_.Name -eq $report.Name }
-
-    if ($matchingDataset) {
-        Set-PowerBIReport -Id $report.Id -WorkspaceId $targetWorkspace.Id -DatasetId $matchingDataset.Id
-        Write-Host "Rebound report '$($report.Name)' to dataset '$($matchingDataset.Name)'"
+    foreach ($report in $reports) {
+        # Store Report Metadata
+        $metadata += [PSCustomObject]@{
+            Workspace_Name  = $workspace.Name
+            Workspace_ID    = $workspace.Id
+            Dataset_ID      = "N/A"
+            Dataset_Creds   = "N/A"
+            Report_Name     = $report.Name
+            Report_ID       = $report.Id
+            Storage_Mode    = "N/A"  # Reports don’t have storage mode
+        }
     }
 }
 
-Write-Host "✅ Migration Completed Successfully!"
+# Export to CSV
+$metadata | Export-Csv -Path $outputFile -NoTypeInformation
+
+Write-Host "✅ Metadata exported to: $outputFile"
