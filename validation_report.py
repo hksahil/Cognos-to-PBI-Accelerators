@@ -1,37 +1,12 @@
-
 import streamlit as st
 import pandas as pd
 import io
 import numpy as np
-from datetime import datetime
 
-# Function to strip leading zeros and convert to numeric if applicable
-def strip_leading_zeros(val):
-    try:
-        if isinstance(val, str):
-            val = val.strip().replace(',', '')
-            if val.replace('.', '', 1).isdigit() or \
-               (val.startswith('-') and val[1:].replace('.', '', 1).isdigit()):
-                return float(val)
-        return val
-    except:
-        return val
-
-# Apply numeric cleaning only on likely numeric columns
-def convert_possible_numeric(df):
-    for col in df.columns:
-        df[col] = df[col].apply(strip_leading_zeros)
-        try:
-            df[col] = pd.to_numeric(df[col], errors='ignore')
-        except:
-            pass
-    return df
-
-# Define the checklist data as a DataFrame
+# Checklist data
 checklist_data = {
-    "S.No": range(1, 18),
+    "S.No": range(1, 15),
     "Checklist": [
-        "Database & Warehouse is parameterized (In case of DESQL Reports)",
         "All the columns of Cognos replicated in PBI (No extra columns)",
         "All the filters of Cognos replicated in PBI",
         "Filters working as expected (single/multi select as usual)",
@@ -45,19 +20,25 @@ checklist_data = {
         "Table style to not have grey bars",
         "Pre-applied filters while generating validation report?",
         "Dateformat to be YYYY-MM-DD [hh:mm:ss] in refresh date as well",
-        "Sorting is replicated",
-        "Filter pane to be hidden before publishing to PBI service",
-        "Mentioned the exception in our validation document like numbers/columns/values mismatch (if any)"
+        "Sorting is replicated"
     ],
-    "Status - Level1": ["" for _ in range(17)],
-    "Status - Level2": ["" for _ in range(17)]
+    "Status - Level1": ["" for _ in range(14)],
+    "Status - Level2": ["" for _ in range(14)]
 }
 checklist_df = pd.DataFrame(checklist_data)
 
-def generate_validation_report(cognos_df, pbi_df):
+# Rename helper
+def rename_selected_columns(df, columns_to_rename):
+    rename_map = {col: f"{col}_ID" for col in columns_to_rename if col in df.columns}
+    return df.rename(columns=rename_map)
+
+# Validation core logic
+def generate_validation_report(cognos_df, pbi_df, exclude_cols=[]):
+    cognos_df = cognos_df.drop(columns=[col for col in exclude_cols if col in cognos_df.columns], errors='ignore')
+    pbi_df = pbi_df.drop(columns=[col for col in exclude_cols if col in pbi_df.columns], errors='ignore')
+
     dims = [col for col in cognos_df.columns if col in pbi_df.columns and 
-            (cognos_df[col].dtype == 'object' or '_id' in col.lower() or '_key' in col.lower() or
-             '_ID' in col or '_KEY' in col)]
+            (cognos_df[col].dtype == 'object' or '_id' in col.lower() or '_key' in col.lower())]
 
     cognos_df[dims] = cognos_df[dims].fillna('NAN')
     pbi_df[dims] = pbi_df[dims].fillna('NAN')
@@ -83,63 +64,56 @@ def generate_validation_report(cognos_df, pbi_df):
 
     validation_report['presence'] = validation_report['unique_key'].apply(
         lambda key: 'Present in Both' if key in cognos_agg['unique_key'].values and key in pbi_agg['unique_key'].values
-        else ('Present in Cognos' if key in cognos_agg['unique_key'].values
-              else 'Present in PBI')
+        else ('Present in Cognos' if key in cognos_agg['unique_key'].values else 'Present in PBI')
     )
 
     for measure in all_measures:
         validation_report[f'{measure}_Cognos'] = validation_report['unique_key'].map(dict(zip(cognos_agg['unique_key'], cognos_agg[measure])))
         validation_report[f'{measure}_PBI'] = validation_report['unique_key'].map(dict(zip(pbi_agg['unique_key'], pbi_agg[measure])))
-
         validation_report[f'{measure}_Diff'] = validation_report[f'{measure}_PBI'].fillna(0) - validation_report[f'{measure}_Cognos'].fillna(0)
 
-    column_order = ['unique_key'] + dims + ['presence'] +                    [col for measure in all_measures for col in 
+    column_order = ['unique_key'] + dims + ['presence'] + \
+                   [col for measure in all_measures for col in 
                     [f'{measure}_Cognos', f'{measure}_PBI', f'{measure}_Diff']]
     validation_report = validation_report[column_order]
 
     return validation_report, cognos_agg, pbi_agg
 
+# Column checklist
 def column_checklist(cognos_df, pbi_df):
     cognos_columns = cognos_df.columns.tolist()
     pbi_columns = pbi_df.columns.tolist()
-
     checklist_df = pd.DataFrame({
         'Cognos Columns': cognos_columns + [''] * (max(len(pbi_columns), len(cognos_columns)) - len(cognos_columns)),
         'PowerBI Columns': pbi_columns + [''] * (max(len(pbi_columns), len(cognos_columns)) - len(pbi_columns))
     })
-
     checklist_df['Match'] = checklist_df.apply(lambda row: row['Cognos Columns'] == row['PowerBI Columns'], axis=1)
-    
     return checklist_df
 
+# Diff checker
 def generate_diff_checker(validation_report):
     diff_columns = [col for col in validation_report.columns if col.endswith('_Diff')]
-
     diff_checker = pd.DataFrame({
         'Diff Column Name': diff_columns,
         'Sum of Difference': [validation_report[col].sum() for col in diff_columns]
     })
-
     presence_summary = {
         'Diff Column Name': 'All rows present in both',
         'Sum of Difference': 'Yes' if all(validation_report['presence'] == 'Present in Both') else 'No'
     }
     diff_checker = pd.concat([diff_checker, pd.DataFrame([presence_summary])], ignore_index=True)
-
     return diff_checker
 
+# Main Streamlit app
 def main():
     st.title("Validation Report Generator")
 
     st.markdown("""
-    **Important Assumptions:**
-    1. Upload the Excel file with two sheets: "Cognos" and "PBI".
-    2. Make sure the column names are similar in both sheets.
-    3. If there are ID/Key/Code columns, make sure the ID or Key columns contains "_ID" or "_KEY" (case insensitive)
+    **Upload Instructions:**
+    1. Upload Excel with two sheets: 'Cognos' and 'PBI'.
+    2. Column names must match.
+    3. You can rename, exclude columns, and convert dates automatically.
     """)
-
-    model_name = st.text_input("Enter the model name:")
-    report_name = st.text_input("Enter the report name:")
 
     uploaded_file = st.file_uploader("Upload Excel file", type="xlsx")
 
@@ -149,67 +123,56 @@ def main():
             cognos_df = pd.read_excel(xls, 'Cognos')
             pbi_df = pd.read_excel(xls, 'PBI')
 
-            # Convert numeric-like strings
-            cognos_df = convert_possible_numeric(cognos_df)
-            pbi_df = convert_possible_numeric(pbi_df)
+            all_columns = list(pd.unique(cognos_df.columns.tolist() + pbi_df.columns.tolist()))
 
-            # Standardize text columns
+            columns_to_rename = st.multiselect("Select columns to rename as <column>_ID", all_columns)
+            exclude_cols_input = st.text_input("Enter column names to exclude from comparison (comma separated)", "")
+            exclude_cols = [col.strip() for col in exclude_cols_input.split(",") if col.strip()]
+
+            # Rename columns
+            cognos_df = rename_selected_columns(cognos_df, columns_to_rename)
+            pbi_df = rename_selected_columns(pbi_df, columns_to_rename)
+
+            # Clean string columns
             cognos_df = cognos_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
             pbi_df = pbi_df.apply(lambda x: x.str.upper().str.strip() if x.dtype == "object" else x)
 
-            option = st.radio("Select Option", ["Data Present", "Only Column Names Present"])
+            # Convert date columns to general format
+            for col in cognos_df.columns:
+                if pd.api.types.is_datetime64_any_dtype(cognos_df[col]):
+                    cognos_df[col] = cognos_df[col].astype(str)
+            for col in pbi_df.columns:
+                if pd.api.types.is_datetime64_any_dtype(pbi_df[col]):
+                    pbi_df[col] = pbi_df[col].astype(str)
 
-            if option == "Only Column Names Present":
-                column_checklist_df = column_checklist(cognos_df, pbi_df)
+            validation_report, cognos_agg, pbi_agg = generate_validation_report(cognos_df, pbi_df, exclude_cols)
+            column_checklist_df = column_checklist(cognos_df, pbi_df)
+            diff_checker_df = generate_diff_checker(validation_report)
 
-                st.subheader("Column Checklist Preview")
-                st.dataframe(column_checklist_df)
+            st.subheader("Validation Report Preview")
+            st.dataframe(validation_report)
 
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    checklist_df.to_excel(writer, sheet_name='Checklist', index=False)
-                    cognos_df.to_excel(writer, sheet_name='Cognos', index=False)
-                    pbi_df.to_excel(writer, sheet_name='PBI', index=False)
-                    column_checklist_df.to_excel(writer, sheet_name='Column Checklist', index=False)
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                checklist_df.to_excel(writer, sheet_name='Checklist', index=False)
+                pd.DataFrame().to_excel(writer, sheet_name='Cognos SS', index=False)
+                pd.DataFrame().to_excel(writer, sheet_name='PBI SS', index=False)
+                cognos_agg.to_excel(writer, sheet_name='Cognos', index=False)
+                pbi_agg.to_excel(writer, sheet_name='PBI', index=False)
+                validation_report.to_excel(writer, sheet_name='Validation_Report', index=False)
+                column_checklist_df.to_excel(writer, sheet_name='Column Checklist', index=False)
+                diff_checker_df.to_excel(writer, sheet_name='Diff Checker', index=False)
 
-                output.seek(0)
-                today_date = datetime.today().strftime('%Y-%m-%d')
-                dynamic_filename = f"{model_name}_{report_name}_ColumnCheck_Report_{today_date}.xlsx" if model_name and report_name else f"ColumnCheck_Report_{today_date}.xlsx"
+            output.seek(0)
+            st.download_button(
+                label="Download Excel Report",
+                data=output,
+                file_name="validation_report_with_checklist.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
-                st.download_button(
-                    label="Download Column Check Excel Report",
-                    data=output,
-                    file_name=dynamic_filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
-            elif option == "Data Present":
-                validation_report, cognos_agg, pbi_agg = generate_validation_report(cognos_df, pbi_df)
-                column_checklist_df = column_checklist(cognos_df, pbi_df)
-                diff_checker_df = generate_diff_checker(validation_report)
-
-                st.subheader("Validation Report Preview")
-                st.dataframe(validation_report)
-
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    checklist_df.to_excel(writer, sheet_name='Checklist', index=False)
-                    cognos_agg.to_excel(writer, sheet_name='Cognos', index=False)
-                    pbi_agg.to_excel(writer, sheet_name='PBI', index=False)
-                    validation_report.to_excel(writer, sheet_name='Validation_Report', index=False)
-                    column_checklist_df.to_excel(writer, sheet_name='Column Checklist', index=False)
-                    diff_checker_df.to_excel(writer, sheet_name='Diff Checker', index=False)
-
-                output.seek(0)
-                today_date = datetime.today().strftime('%Y-%m-%d')
-                dynamic_filename = f"{model_name}_{report_name}_ValidationReport_{today_date}.xlsx" if model_name and report_name else f"ValidationReport_{today_date}.xlsx"
-
-                st.download_button(
-                    label="Download Excel Report",
-                    data=output,
-                    file_name=dynamic_filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+            st.markdown("---")
+            st.markdown("Made with ❤️ by [Sahil Choudhary](https://contact-sahil.netlify.app/)")
 
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
