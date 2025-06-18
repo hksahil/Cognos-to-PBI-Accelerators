@@ -22,7 +22,6 @@ def parse_xml(xml_file):
         except AttributeError:
             namespace_info['lastChangedBy'] = "N/A"
 
-        # Check if the namespace is a business layer
         is_business_layer = "Business Layer" in namespace_info['name']
 
         # Fetch folder details
@@ -60,7 +59,6 @@ def parse_xml(xml_file):
                 query_info['description'] = query.find('{http://www.developer.cognos.com/schemas/bmt/60/12}description').text or "No description available"
             except AttributeError:
                 query_info['description'] = "N/A"
-            
             # Fetch SQL query
             try:
                 query_info['sql'] = query.find('.//{http://www.developer.cognos.com/schemas/bmt/60/12}dbQuery/{http://www.developer.cognos.com/schemas/bmt/60/12}sql').text
@@ -89,21 +87,15 @@ def parse_xml(xml_file):
                 except AttributeError:
                     item_info['dataType'] = "N/A"
 
-                # Add expression and refobjs for business layer
-                if is_business_layer:
-                    try:
-                        expression_element = query_item.find('{http://www.developer.cognos.com/schemas/bmt/60/12}expression')
-                        expression = ET.tostring(expression_element, encoding='unicode', method='text')
-                        item_info['expression'] = expression.strip()
-                    except AttributeError:
+                # FIXED: Robustly extract <expression> and its <refobj> child text
+                if 1==1:
+                    expression_element = query_item.find('{http://www.developer.cognos.com/schemas/bmt/60/12}expression')
+                    if expression_element is not None:
+                        refobjs = [refobj.text for refobj in expression_element.findall('{http://www.developer.cognos.com/schemas/bmt/60/12}refobj')]
+                        item_info['expression'] = " | ".join(refobjs) if refobjs else "N/A"
+                        item_info['refobjs'] = refobjs if refobjs else ["N/A"]
+                    else:
                         item_info['expression'] = "N/A"
-
-                    item_info['refobjs'] = []
-                    try:
-                        refobjs = query_item.findall('.//{http://www.developer.cognos.com/schemas/bmt/60/12}refobj')
-                        for refobj in refobjs:
-                            item_info['refobjs'].append(refobj.text)
-                    except AttributeError:
                         item_info['refobjs'] = ["N/A"]
                 else:
                     item_info['expression'] = "N/A"
@@ -140,7 +132,6 @@ def parse_xml(xml_file):
                 shortcut_info['targetType'] = shortcut.find('{http://www.developer.cognos.com/schemas/bmt/60/12}targetType').text
             except AttributeError:
                 shortcut_info['targetType'] = "N/A"
-
             shortcut_details.append(shortcut_info)
         namespace_info['shortcuts'] = shortcut_details
 
@@ -157,7 +148,7 @@ def main():
 
         if namespaces:
             for index, namespace in enumerate(namespaces, start=1):
-                print('hi')
+                pass  # You can print or debug here if needed
 
         # Consolidate all query items into a single dataframe
         consolidated_data = []
