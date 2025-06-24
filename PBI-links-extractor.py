@@ -1,3 +1,7 @@
+# Input is JSON that we get from Power BI Studio VS Code extension
+## Code is %cmd SET API_PATH= /groups/groupid/
+## GET ./reports
+
 import streamlit as st
 import pandas as pd
 import json
