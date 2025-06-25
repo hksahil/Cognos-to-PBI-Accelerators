@@ -29,7 +29,7 @@ def convert_possible_numeric(df):
 
 # Define the checklist data as a DataFrame
 checklist_data = {
-    "S.No": range(1, 18),
+    "S.No": range(1, 24),
     "Checklist": [
         "Database & Warehouse is parameterized (In case of DESQL Reports)",
         "All the columns of Cognos replicated in PBI (No extra columns)",
@@ -47,10 +47,16 @@ checklist_data = {
         "Dateformat to be YYYY-MM-DD [hh:mm:ss] in refresh date as well",
         "Sorting is replicated",
         "Filter pane to be hidden before publishing to PBI service",
-        "Mentioned the exception in our validation document like numbers/columns/values mismatch (if any)"
+        "Mentioned the exception in our validation document like numbers/columns/values mismatch (if any)",
+        "Sorting should be replicated for list reports",
+        "Verify replication of currency symbols",
+        "Verify conditional formatting replication for all columns",
+        "Validate presence of report title and subtitle",
+        "Validate all Slicer for Search Option",
+        "Slicer should be set to ALL by deafult" 
     ],
-    "Status - Level1": ["" for _ in range(17)],
-    "Status - Level2": ["" for _ in range(17)]
+    "Status - Level1": ["" for _ in range(23)],
+    "Status - Level2": ["" for _ in range(23)]
 }
 checklist_df = pd.DataFrame(checklist_data)
 
