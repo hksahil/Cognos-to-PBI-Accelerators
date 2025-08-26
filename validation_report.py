@@ -42,7 +42,7 @@ checklist_data = {
         "Entire model to be refreshed before publishing to PBI service",
         "Date Last refreshed to be removed from filter/table",
         "Table's column header to be bold",
-        "Table style to not have grey bars",
+        "Table style should be None",
         "Pre-applied filters while generating validation report?",
         "Dateformat to be YYYY-MM-DD [hh:mm:ss] in refresh date as well",
         "Sorting is replicated",
